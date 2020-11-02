@@ -1,0 +1,158 @@
+---
+title: "INDE546_HW6"
+author: "Michael Shieh"
+date: "2/20/2020"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(xtable)
+library(tidyverse)
+library(MASS)
+library(reshape2)
+library(stargazer)
+```
+
+```{r, include=FALSE}
+setwd("~/Documents/UW/2020Winter/INDE546_InferentialDataAnalysis/HW/HW6")
+survey <- read.csv("Class_Survey_W20.csv", header = TRUE)
+```
+
+# Exercise 1
+
+#### I want to know how likey will the participants be frustrated with Seattle traffic base on their commute time, how do they feel about the bicyclists in Seattle, and the gender of the participant. Since the dependent variable is categorical but are ordered, I will use __ordered logit regression__ to analyze the relationships.
+#### The variable inputed in this model will be:
+##### __Dependent variable:__
+* Frustration (three levels: "Yes"(26.28%), "Neutral"(26.88%), "No"(46.84%))
+
+##### __Independent variables:__
+* AggresiveBike (three levels: "Agree"(3), "Neutral"(2), "Disagree"(1))
+* Commute time (continuous)
+* Gender (two levels: "Female"(1), "Male"(2))
+
+#### Dependent variable:
+```{r}
+survey <- survey %>% 
+  rename(Frustration = Please.indicate.how.much.you.agree.or.disagree.with.the.following.statements...I.am.often.frustrated.with.Seattle.traffic.) %>%
+  filter(Frustration %in% c("Neither agree nor disagree", "Somewhat disagree", "Somewhat agree", "Strongly agree", "Strongly disagree")) %>%
+  mutate(Frustration = case_when(Frustration == 'Neither agree nor disagree' ~ 2, Frustration %in% c("Strongly agree", "Somewhat agree") ~ 3, Frustration %in% c("Strongly disagree", "Somewhat disagree") ~ 1))
+
+survey$Frustration <- factor(survey$Frustration, labels = c("Less", "Neutral", "More"))
+survey$Frustration <- relevel(survey$Frustration, ref = "Neutral")
+
+summary(survey$Frustration)
+```
+##### The above table shows the frequency of all levels in my dependent variable.
+
+
+#### Independent variable 1:
+##### I chose this variable because I think if commuters think the bicyclists are too aggressive, they must be bothered by the bicyclists and therefore have the potential to be more frustrated toward the Seattle traffic.
+```{r}
+survey <- survey %>% 
+  rename(AggresiveBike = Please.indicate.how.much.you.agree.or.disagree.with.the.following.statements...Bicyclists.in.Seattle.are.too.aggressive.) %>% 
+  filter(AggresiveBike %in% c("Neither agree nor disagree", "Somewhat disagree", "Somewhat agree", "Strongly agree", "Strongly disagree")) %>%
+  mutate(AggresiveBike = case_when(AggresiveBike == 'Neither agree nor disagree' ~ 2, AggresiveBike %in% c("Strongly agree", "Somewhat agree") ~ 3, AggresiveBike %in% c("Strongly disagree", "Somewhat disagree") ~ 1))
+
+survey$AggresiveBike <- factor(survey$AggresiveBike, labels = c("Disagree", "Neutral", "Agree"))
+survey$AggresiveBike <- relevel(survey$AggresiveBike, ref = "Neutral")
+```
+
+#### Independent variable 2:
+##### I chose this variable because I think that the longer the commute time, the more opportunity that a commuter would encounter some traffic because they live farther than others.
+```{r}
+survey <- survey %>%
+  rename(CommuteTime = On.average..how.many.minutes.does.it.take.you.to.get.to.the.U..Washington.from.your.home.) %>%
+  filter(CommuteTime >= 0)
+```
+
+#### Independent variable 3:
+##### I chose this variable because I want to see if gender affect the frustration level toward Seattle traffic.
+```{r}
+survey <- survey %>%
+  rename(Gender = Are.you..1) %>%
+  filter(Gender %in% c("Male", "Female")) %>%
+  mutate(Gender = ifelse(Gender == "Female", 1, 2))
+```
+```{r echo=FALSE}
+#survey <- survey %>%
+#  rename(AutoSafety = Please.indicate.how.much.you.agree.or.disagree.with.the.following.statements...Autonomous..driverless..cars.will.be.safer.than.human.operated.cars.) %>%
+#  filter(AutoSafety %in% c("Neither agree nor disagree", "Somewhat disagree", "Somewhat agree", "Strongly agree", "Strongly disagree")) %>%
+#  mutate(AutoSafety = case_when(AutoSafety == 'Neither agree nor disagree' ~ 2, AutoSafety %in% c("Strongly agree", "Somewhat agree") ~ 3, AutoSafety %in% c("Strongly disagree", "Somewhat disagree") ~ 1))
+
+#survey$AutoSafety <- factor(survey$AutoSafety, labels = c("Worse", "Neutral", "Better"))
+#survey$AutoSafety <- relevel(survey$AutoSafety, ref = "Neutral")
+```
+***
+
+# Exercise 2
+#### I use polr function to come up with the ordered logit model.
+```{r, results = "asis"}
+ordlog <- polr(Frustration ~ AggresiveBike + CommuteTime + Gender, data = survey, Hess = TRUE)
+table <- coef(summary(ordlog))
+
+p <- pnorm(abs(table[, "t value"]), lower.tail = FALSE) * 2
+table <- cbind(table, "p value" = p)
+
+rownames(table)[rownames(table) == "AggresiveBikeDisagree"] <- "Disagree w/ Aggressive Bicyclist"
+rownames(table)[rownames(table) == "AggresiveBikeAgree"] <- "Agree w/ Aggressive Bicyclist"
+rownames(table)[rownames(table) == "CommuteTime"] <- "Commute Time"
+#print(xtable::xtable(round(table, 3)), type = "html", html.table.attributes = "border=3")
+
+stargazer::stargazer(round(table, 3), type = "html", title = "Summary of Ordered Logit Model")
+```
+#### From the table, I can see that only two variables are significant, and out of the two, commute time is a very significant variable that effects the frustration level toward Seattle traffic.
+
+#### The following table shows the log likelihood initial and the numbers of parameters.
+```{r, results = "asis"}
+table2 <- cbind("Log Likelihood at Convergence" = deviance(ordlog)/(-2), "Number of Parameters" = ordlog$edf)
+rownames(table2) <- "Value"
+print(xtable::xtable(table2), type = "html", latex.table.attributes = "border=3")
+```
+
+***
+
+# Exercise 3
+#### Next, I look at the odds ratios and the corresponding confident intervals of the variable by getting the exponential value of the logit coefficient:
+```{r}
+round(exp(cbind(OR = coef(ordlog), confint(ordlog))),3)
+```
+##### As the ratios showed, if you agree that the bicyclists in Seattle are aggressive, it is 1.64 times more likely you will be more frustrated with the Seattle traffic. On the contrary, if you disagree with this aggressiveness, it is 0.92 times less likely you will be less frustrated. Meanwhile, if your commute time increase by 1 unit, it is 1.03 times more likely you will be frustrated with Seattle traffic. Interestingly, it doesn't matter if you hold a positive or negative opinion, as long as you do not have a neutral opinion toward autonomous vehicles, you are more likely to be frustrated with Seattle traffic.
+
+#### From the following plot, I can say that male have more probability to be frustrated with Seattle traffic compare to female
+```{r}
+x <- seq(-4, 4, by = .1)
+
+plot(x, dlogis(x), type = "l")
+abline(v = c(-0.0757, 1.1162) + 0.2415, col = "#b7a57a", lwd = 2) #Female
+abline(v = c(-0.0757, 1.1162), col = "#4B2E83", lwd = 2) #Male
+text(-3.6, .10, "P(Less \n Frustration)")
+text(2.8, .10, "P(More \n Frustration)")
+legend("topleft", lwd = 2, legend = c("Female", "Male"), col = c("#b7a57a", "#4B2E83"), bty = "n")
+```
+
+#### From the following plot, I can say that agreeing to aggressive bicyclists have more probability to be frustrated with Seattle traffic compare to disagreeing to aggressive bicyclists
+```{r}
+x <- seq(-4, 4, by = .1)
+
+plot(x, dlogis(x), type = "l")
+abline(v = c(-0.0757, 1.1162) + 0.4960 - 0.088, col = "#b7a57a", lwd = 2) #Disagree to Aggression
+abline(v = c(-0.0757, 1.1162), col = "#4B2E83", lwd = 2) #Agree to Aggresion
+text(-3.6, .10, "P(Less \n Frustration)")
+text(2.8, .10, "P(More \n Frustration)")
+legend("topleft", lwd = 2, legend = c("Disagree to Aggression", "Agree to Aggresion"), col = c("#b7a57a", "#4B2E83"), bty = "n")
+```
+
+```{r}
+
+```
+
+
+
+
+

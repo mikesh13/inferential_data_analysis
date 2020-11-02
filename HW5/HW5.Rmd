@@ -1,0 +1,160 @@
+---
+title: "INDE546_HW5"
+author: "Michael Shieh"
+date: "2/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+setwd("~/Documents/UW/2020Winter/INDE546_InferentialDataAnalysis/HW/HW5")
+library(tidyverse)
+```
+
+# Exercise 1
+
+##### First, import dataset as survey:
+
+```{r}
+survey <- read.csv("Class_Survey_W20.csv", header = TRUE)
+```
+
+##### The dependent variable I have chosen for this logistic regression model is __whether the participants have involved in a car crash or not in the past 5 years__, where there are two levels (Yes and No).
+
+```{r}
+survey <- survey %>% 
+  rename(CarCrash = In.the.past.5.years..how.many.times.have.you.been.involved.in.a.car.crash..) %>%
+  drop_na(CarCrash) %>%
+  mutate(CarCrash = ifelse(CarCrash == 0, 0, 1))
+```
+
+##### The first independent variable I have chosen is __how often do the participants go on campus every week__, where there are two levels (high and low). I chose this variable because I think if you stay at home more often, it is more unlikely that you will encounter a car crash.
+
+```{r}
+survey <- survey %>% rename(OnCampusFreq = In.an.average.week..how.many.days.are.you.on.the.UW.campus.) 
+survey <- survey %>% drop_na(OnCampusFreq) 
+survey <- survey %>% mutate(OnCampusFreq = ifelse(grepl('Every', survey$OnCampusFreq), 1, 0))
+
+survey$OnCampusFreq <- factor(survey$OnCampusFreq, levels = c("0", "1"), labels = c("Low", "High"))
+```
+
+##### The second independent variable I have chosen is __do participants sort wastes properly__, where there are two levels (Yes and No). I chose this variable because I think if people follow traffic laws, they should encounter less car crashes. If willing to follow laws, they might be more willing to sort wastes properly. I am curios to see the relationships between the two variables.
+
+```{r}
+survey <- survey %>%
+  rename(ProperlySort = How.often.....do.you.properly.sort.waste.into.trash..recyclables.and.compost.) %>%
+  drop_na(ProperlySort) %>%
+  mutate(ProperlySort = ifelse(ProperlySort == 'Never', 0, 1))
+
+survey$ProperlySort <- factor(survey$ProperlySort, levels = c("0", "1"), labels = c("No", "Yes"))
+```
+
+##### The third independent variable I have chosen is __the age of the participants__, where this is a continuous variable. I chose this variable because I believe age is definitely sharing a meaningful relationship with the dependent variable. 
+```{r}
+survey <- survey %>%
+  rename(Age = How.old.are.you.) %>%
+  filter(Age > 0)
+```
+
+##### The forth independent variable I have chosen is __how long do the participants own driver's licenses__, where this is a continuous variable. I chose this variable because I think that the longer you drive, you more experiences you have. Therefore, it should be more unlikely to encounter a car crash if you hold a driver's license longer.
+
+```{r}
+survey <- survey %>%
+  rename(DLAge = How.old.were.you.when.you.got.your.driver.s.license.) %>%
+  filter(DLAge > 0) %>%
+  mutate(DL_Length = Age - DLAge)
+```
+
+##### The fifth independent variable I have chosen is __how often do participants drive weekly compare to other participants__, where there are two levels (above average and below average) I chose this variable because I think if you drive more frequently than others, it is more likely that you got involved in a car crash.
+
+```{r}
+survey <- survey %>%
+  rename(DriveFreq = On.average..how.many.days.in.a.week..out.of.7.days..do.you.drive.) %>%
+  filter(DriveFreq >= 0) %>%
+  mutate(DriveFreq = ifelse(DriveFreq >= mean(DriveFreq), 1, 0))
+
+survey$DriveFreq <- factor(survey$DriveFreq, levels = c("0", "1"), labels = c("BelowAvg", "AboveAvg"))
+```
+##### The sixth variable I have chosen is __the gender of the participants__, where there are two levels (male and female).
+##### I chose this variable because I want to see if gender effect the frequency of involving in a car crash.
+
+```{r}
+survey <- survey %>%
+  rename(Gender = Are.you..1) %>%
+  filter(Gender %in% c('Male', 'Female')) %>%
+  mutate(Gender = case_when(Gender == 'Male' ~ 1, Gender == 'Female' ~ 0))
+
+survey$Gender <- factor(survey$Gender, levels = c("0", "1"), labels = c("Female", "Male"))
+```
+##### Next, I put all variables into the regression model.
+
+```{r}
+LB_HW5 <- glm(CarCrash ~ Age + OnCampusFreq + ProperlySort + DL_Length + DriveFreq + Gender, data = survey, family = binomial())
+summary(LB_HW5)
+```
+***
+# Exercise 2
+
+##### Since age is a very insignificant variable, I remove this variable to see if I can produce a better model.
+
+```{r}
+LB_HW5 <- glm(CarCrash ~ OnCampusFreq + ProperlySort + DL_Length + DriveFreq + Gender, data = survey, family = binomial())
+summary(LB_HW5)
+```
+
+##### After removing the variable age, I noticed that there is a new significant variable occured. Next, I removed all insignificant variable to see if I can furthur improve the model.
+
+```{r}
+LB_HW5 <- glm(CarCrash ~ DL_Length + DriveFreq, data = survey, family = binomial())
+summary(LB_HW5)
+```
+```{r}
+x <- data.frame("Variable Names" = c('Length of having drivers license', 'Above average frequency of driving'), "coefficients" = LB_HW5$coefficients[2:3], "z-value" = c('-3.499', '-8.441'), "Significance" = c('Yes', 'Yes'))
+x
+```
+##### In this model, the length of holding a driver's license and the weekly driving frequency are the two significant variables effecting the dependent variable previously involving in car crashes or not. With the removal of the variables, the AIC decreases along the way. Including of all four remaining independent variables decreases the deviance by approximately 26.8% while sacrificing 4 degrees of freedom. Also, it takes 4 iterations to acheive a maximum likelihood estimate.
+***
+##### Next, I look at the relative risk and odds ratio.
+```{r}
+table <- table(survey$DriveFreq, survey$CarCrash)
+colnames(table) = c("No Crash", "Crash")
+table
+```
+##### P(BelowAvg+Crash) = 160/186 = 0.8602, P(AboveAvg+Crash) = 41/121 = 0.3388, Relative Risk  = 0.8602/0.3388 = 2.5390.
+##### Odds(BelowAvg+Crash) = 160/26 = 6.1538, Odds(AboveAvg+Crash) = 41/80 = 0.5125, Odds Ratio = 6.1538/0.5125 = 12.0074.
+##### Both numbers show that the below-average-frequency drivers are more crash-prone when driving.
+***
+##### Then I plotted the logit curve
+```{r}
+generated_data <- as.data.frame(expand.grid(DL_Length = seq(min(survey$DL_Length), 100, 0.1), DriveFreq = c('BelowAvg','AboveAvg')))
+generated_data$probs <- plogis(predict(LB_HW5, newdata = generated_data))
+
+ggplot(generated_data, aes(x = DL_Length, y = probs, color = DriveFreq)) +
+  geom_line() +
+  geom_point(data = survey, aes(x = DL_Length, y = CarCrash)) +
+  labs(x = "Length of having Driver's License", y = "P(CarCrash)", title = "Logit Curve")+
+  ylim(c(0, 1))
+```
+
+##### The logit curve shows that if you drive frequently, you are less likely to get involved in a car crash, but if you own a driver license longer, you are decreasing your odds of encountering a car crash. This result could connect the cause of car crashes to inexperience drivers who just acquire their driver's licenses more based on the result of this model.
+***
+# Exercise 3
+
+##### The two interaction term I added were GenderxOnCampusFreq and DL_LengthxDriveFreq.
+```{r}
+LB_HW5 <- glm(CarCrash ~ Gender + DL_Length + DriveFreq + Gender*DriveFreq + OnCampusFreq*DriveFreq, data = survey, family = binomial())
+summary(LB_HW5)
+```
+```{r}
+x <- data.frame("Variable Names" = c('Male', 'Length of having drivers license', 'Above average frequency of driving', 'Go on campus more frequently','Male who drive frequently', 'Participants who both go on campus and drive more frequently'), "coefficients" = LB_HW5$coefficients[2:7], "z-value" = c('-0.720', '-3.432', '-4.973', '-0.608', '-0.020', '1.537'), "Significance" = c('No', 'Yes', 'Yes', 'No', 'No', 'No'))
+x
+```
+
+##### The AIC increases by 3.85, which means the previous model is slightly better than this one. However, if I remove some variables and leave only significant variables remain in the model, I could probably improve the model by decreasing AIC. Which is the result below, as AIC decreases by 4.69.
+```{r}
+LB_HW5 <- glm(CarCrash ~ DL_Length + DriveFreq + DL_Length*DriveFreq, data = survey, family = binomial())
+summary(LB_HW5)
+```

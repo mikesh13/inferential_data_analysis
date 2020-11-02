@@ -1,0 +1,46 @@
+---
+title: "Lecture 4"
+author: "Michael Shieh"
+date: "1/24/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+setwd("~/Documents/UW/2020Winter/INDE546_InferentialDataAnalysis/HW/HW3")
+library(tidyverse)
+library(dplyr)
+```
+
+```{r}
+survey <- read.csv("Class_Survey_W20.csv", header = TRUE)
+```
+
+```{r}
+survey <- survey %>% rename(Age = How.old.are.you.)
+
+#another  way  to  rename a  variable
+survey$CommuteTime = survey[, 2]
+
+#use  the  square  of  Age
+survey <- survey %>% mutate(AgeSq = Age^2)
+
+#Create  a dummy variable  to  indicate
+#whether you  use  Lyft  or  not
+survey <- survey %>% mutate(L = ifelse(survey[, 9] ==  0, "no", "yes"))
+```
+
+```{r}
+B <- lm(CommuteTime ~ Age + L, data = survey)
+summary(B)
+```
+```{r}
+library(xtable)
+xtable(B)
+```
+
+

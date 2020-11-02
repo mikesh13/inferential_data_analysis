@@ -1,0 +1,104 @@
+---
+title: "INDE546_HW8"
+author: "Michael Shieh"
+date: "3/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+setwd("~/Documents/UW/2020Winter/INDE546_InferentialDataAnalysis/HW/HW8")
+survey <- read.csv("Class_Survey_W20.csv", header = TRUE)
+
+library(tidyverse)
+library(xtable)
+```
+
+# Principle Component Analysis (PCA)
+
+#### The six variable I chose was "Age" (from question 43: How old are you), "CommuteTime" (from question 2: On average, how many minutes does it take you to get to UW from your home), "UberDollar" (from question 12: In the past 7 days, how much did you spend on Uber, Lyft, or other ride-hailing apps in US Dollars), "QualityEd" (from question 37: Please indicate how much you agree or disagree with... I think the UW provides a quality education), "SortWaste" (from question 40: How often do you properly sort waste into trash, recyclables and compost), and Downtown (from question 5: How often do you go to downtown Seattle)
+```{r}
+survey <- survey %>%
+  rename(Age = How.old.are.you., CommuteTime = On.average..how.many.minutes.does.it.take.you.to.get.to.the.U..Washington.from.your.home., 
+         UberDollar = In.the.past.7.days..how.much.did.you.spend.on.Uber.Lyft.or.other.ride.hailing.apps..in.US.dollars.., 
+         QualityEd = Please.indicate.how.much.you.agree.or.disagree.with.the.following.statements...I.think.the.UW.provides.a.quality.education.,
+         SortWaste = How.often.....do.you.properly.sort.waste.into.trash..recyclables.and.compost.,
+         Downtown = How.often.do.you...go.to.downtown.Seattle..) %>%
+  mutate(UberDollar = replace_na(UberDollar, 0)) %>%
+  filter(Age >= 0, CommuteTime >= 0)
+```
+
+#### First, I try to see the correlation between each variables. Since the range of each variable varies a lot, I standardize the data first before proceeding.
+```{r, results = 'asis'}
+survey <- survey %>% select(Age, CommuteTime, UberDollar, QualityEd, SortWaste, Downtown)
+survey$QualityEd <- as.numeric(survey$QualityEd)
+survey$SortWaste <- as.numeric(survey$SortWaste)
+survey$Downtown <- as.numeric(survey$Downtown)
+
+survey <- survey %>% 
+  mutate(Age = (Age - mean(Age))/sd(Age), CommuteTime = (CommuteTime - mean(CommuteTime))/sd(CommuteTime),
+         QualityEd = (QualityEd - mean(QualityEd))/sd(QualityEd), SortWaste = (SortWaste - mean(SortWaste))/sd(SortWaste),
+         UberDollar = (UberDollar - mean(UberDollar))/sd(UberDollar), Downtown = (Downtown - mean(Downtown))/sd(Downtown))
+print(xtable::xtable(cor(survey)), type = "html", html.table.attribute = "border = 2")
+```
+#### As shown aboive, most correlation between variables are small. Next, I plot 
+
+```{r}
+plot(survey)
+```
+
+
+```{r, results='asis'}
+survey_pca <-prcomp(survey, scale = TRUE)
+print(survey_pca$sdev)
+print(xtable::xtable(survey_pca$rotation), type = "html", html.table.attribute = "border = 2")
+print(xtable::xtable(summary(survey_pca)), type = "html", html.table.attribute = "border = 2")
+```
+
+#### It seems that PC1 is highly correlated with the variables "Age" and "CommuteTime", where the PC1 increases with the increase of __age__ and __commute time__.Meanwhile, PC2 only highly correlated with the variable "QualityEd". I'd say this PC is the primary measure of __the quality of UW education__, where the score of PC2 decreases with the increasing of quality education score. Similarly, PC3 can be regarded as the measure of __spendings on Uber/Lyft__, PC4 as the measure of __the frequency of properly sorting waste into appropriate bins__, and PC5 as the frequency of __going to downtown Seattle__. Lastly, PC6 is highly correlated with __age (positive)__ and __commute time (negative)__, but the impact of the two variables are opposite.
+
+#### I would choose to keep __the first 5 principle components__ because I think that no principle components explains a significant amount of variance. Keeping more of them should be a sensible thing to do considering all of them explained a similar proportion of variance. Keeping the first 5 should explain enough variance. Next, I plot the scree plot to see if my decision would fit the elbow rule.
+
+```{r}
+plot(survey_pca, main = "Scree plot")
+```
+
+
+#### From the scree plot there is no clear sign of an elbow existed visually, unless I only keep the first principle components. However, by doing so I could only explain a small amount of variance, which is unacceptable.
+
+
+# Factor Analysis
+
+#### Setup for Factor Analysis, and initially select to use 2 factors
+
+```{r, results='asis'}
+Age <- cor(survey)[1,]
+CommuteTime <- cor(survey)[2,]
+UberDollar <- cor(survey)[3,]
+QualityEd <- cor(survey)[4,]
+SortWaste <- cor(survey)[5,]
+Downtown <- cor(survey)[6,]
+A_f <- rbind(Age, CommuteTime, UberDollar, QualityEd, SortWaste, Downtown)
+```
+
+```{r}
+factanal(covmat = A_f, factors = 2, rotation = "none")
+```
+
+#### Since the variable "UberDollar" did not correlate with any of the factor, I suspected there should be one more factor, so I re-run the setup with 3 factors.
+```{r}
+factanal(covmat = A_f, factors = 3, rotation = "none")
+```
+
+#### It seems Factor1 is very highly correlated with Quality of Education, and Factor 3 is correlated with Uber Spendings. Also, Factor 2 is highly correlated with Age and Commute Time.
+
+#### Next, I would use oblique rotation to rotate the data to provide more flexibility. I choose oblique rotation because the data is already uncorrelated, so there's no need to eliminate collinearity.
+```{r}
+fa3 <- factanal(covmat = A_f, factors = 3, rotation = "promax")
+fa3
+```
+
+#### The factors I got from factor analysis are actually very similar to some of the principle components I got earlier. Factor 1 and PC2 both only highly correlated with quality of UW education, Factor 3 and PC3 represents the spendings on Uber/Lyft, and Factor 2 and PC1 are both similarly highly correlated with age and commute time. Even after I allowed factors to be correlated, all three factors end up approximately uncorrelated. I think if the variables are uncorrelated in the beginning, it doesn't matter which type of analysis I use, I would obtain somewhat similar results.

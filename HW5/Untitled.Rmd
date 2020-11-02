@@ -1,0 +1,25 @@
+---
+title: "INDE546_HW5"
+author: "Michael Shieh"
+date: "2/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+setwd("~/Documents/UW/2020Winter/INDE546_InferentialDataAnalysis/HW/HW5")
+library(tidyverse)
+```
+
+```{r}
+survey <- read.csv("Class_Survey_W20.csv", header = TRUE)
+```
+
+
+
+
+
+

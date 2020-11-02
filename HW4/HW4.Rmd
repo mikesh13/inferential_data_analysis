@@ -1,0 +1,115 @@
+---
+title: "INDE546_HW4"
+author: "Michael Shieh 1826962"
+date: "1/29/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(sjPlot)
+library(sjlabelled)
+library(sjmisc)
+library(car)
+library(xtable)
+```
+
+# Exercise 1
+
+##### I want to use the student's average commute time to UW (from question 2) as the dependent variable.
+##### For the variables I intend to include in the model:
+
+1. __Do the participant use Uber/Lyft at least once every week on average (Categorical variable: Yes, No):__ Ride sharing usually takes less time than public transportations, which means for students who live in a location with longer commute time they might take Lyft/Uber to save time more regularly.
+2. __The age of the participants (Continuous variable: Min: 18, Mean: 24.06, Max: 38):__ I think age of the participants would likely affect the housing choice, where different age groups may have different preferences on residental area. This would result in a difference in average commute time.
+3. __How often do the participants go on UW campus(Categorical variable: High, Low):__ If a student need to go on campus frequently, he may not choose to live in a location where it has long commute time. High Frequency means more than 5 days a week.
+4. __Whether the primary means of transportation involves traffics (Categorical variable: Yes, No):__ Since transportations that involves traffics (e.g. bus, drive) would more likely run into delays than other means of transportations (e.g. walking, biking, light rail), average commute time could be higher comparing to other means.
+5. __Whether the participants share houses with significant other or other family members (Categorical variable: Yes, No):__ In this case, those who live with significant other or other family member may choose to live some place that is suitable for both to commute to their jobs or schools. This could result in longer commute time because of the trade-offs between commuting to tow different locations.
+
+# Exercise 2
+
+##### First, I need to prepare the data for the model.
+```{r}
+survey <- read.csv("Class_Survey_W20.csv", header = TRUE)
+#Rename column names of the variables that I will use in this regression model.
+survey <- survey %>% 
+  rename(Age = How.old.are.you., Who = Are.you., Tmode = What.is.your.primary.means.of.transportation.to.and.from.the.U..Washington., CommuteTime = On.average..how.many.minutes.does.it.take.you.to.get.to.the.U..Washington.from.your.home.) %>%
+  rename(Transportation = Please.indicate.how.much.you.agree.or.disagree.with.the.following.statements...Seattle.public.transportation.is.reliable.,  Days = In.an.average.week..how.many.days.are.you.on.the.UW.campus., Gender = Are.you..1) %>%
+  rename(LyftUber = On.average..how.many.days.in.a.week..out.of.7.days..do.you.use.Uber.Lyft.or.other.ride.hailing.apps., ShareHouse = Do.you.live.with.a.significant.other.or.other.family.members.)
+```
+
+```{r}
+#Filter the dataset to clear out missing and meaningless data.
+#ShareHouse = Yes means living with significant other or other family members. Otherwise, no.
+survey <- survey %>% filter(Age >= 0, CommuteTime >= 0, Who == 'Student', ShareHouse %in% c('Yes', 'No')) %>% drop_na(Who, Tmode, Transportation, Days, LyftUber)
+
+#Transform the variables into the way I wnat to put in my regression model.
+#Traffics = Yes means primary means of commute is either buses or driving. Otherwise, no.
+#Frequency = High means go on UW campus at least 5 days a week. Otherwise, low.
+#LyftUber = Yes means taking Lyft/Uber at least once a week on average. Otherwise, no.
+survey <- survey %>% 
+  mutate(Traffics = ifelse((grepl('Bus', survey$Tmode) | grepl('Drive', survey$Tmode)) , "Yes", "No"), AgeSq = Age^2, Frequency = ifelse(grepl('Every', survey$Days), "High", "Low"), LyftUber = ifelse(survey$LyftUber > 0, "Yes", "No"), CommuteTimeSqrt = CommuteTime^0.5, AgeSq = Age^2) 
+
+```
+
+##### I also want to see if the regression model can make good predictions on commute time.
+```{r}
+#Seperate the data into two half, one as training set, another as testing set.
+train.ix <- sample(nrow(survey), floor(nrow(survey)/2))
+survey.train <- survey[train.ix,]
+survey.test <- survey[-train.ix,]
+```
+##### I use the square root of commute time because as stated in class, the value seems to fit into a normal distribution after taking the square root.
+
+```{r}
+#Put variables in Regression Model, use training set to train the model.
+LB_HW4 <- lm(CommuteTimeSqrt ~ Age + Traffics + Frequency + LyftUber + ShareHouse, data = survey.train)
+summary(LB_HW4)
+```
+
+# Exercise 3
+##### Next, I look at confidence interval for all included variables:
+```{r}
+plot_model(LB_HW4)
+confint(LB_HW4)
+```
+
+##### The confidence interval for Age, TrafficYes, LyftUberYes, and ShareHouseYes do not include zero, so they appear to be sighificant factors for commute time.
+
+##### The following is the multicollinearity test:
+```{r}
+vif(LB_HW4)
+```
+
+##### VIF are all close to 1, so no multicollinearity problem appears to be present.
+
+##### Then, I plot the residuals to see if the normality assumption holds:
+```{r}
+mean(LB_HW4$residuals)
+par(mfrow = c(2, 2))
+plot(LB_HW4)
+```
+
+
+##### The mean of the residuals is approximately zero.
+
+##### It seems most of the data fits on the linear line from Normal Q-Q plot, and there doen't seem to have a pattern from Residuals vs Fitted plot. However, I did observe there might be some outliers existing in the data, and based on the R-square value (around 0.25) I think that this model is still being affected by a lot of noises.
+
+##### Overall, I'd say the model adheres to the OLS assumptions pretty well. Lastly, I will use the testing data to see if the regression model is making a good prediction.
+```{r}
+predict.lm <- predict(LB_HW4, survey.test)
+cor(predict.lm, survey.test$CommuteTime)
+```
+##### The correlation shows that the model is not making a good prediction, which should aligns with the siginificant amount of noises existing.
+
+# Exercise 4
+##### From the result of the model, I would say that students whose means of transportation experience traffics and/or living with significant other or other family members are likely to have longer commute time. Also, it seems that taking Lyft/Uber regularly can help reduce commute time. Note that, 64% of the responses (137 out of 214) stated that they take Lyft/Uber because of conveniences, I thought this could mean saving time on longer commutes. As it turns out, the average commute time for those is actually 18.138 minutes, where the average commute time for all students is 20.631 minutes. It means they are more likely those who have shorter commutes, and by taking Lyft/Uber they would have even faster commute.
+
+# Exercise 5
+
+##### Since I choose variables based on my own reasoning, there can be other significant variables that I omitted in my model, or the sampling can be biased that I could over-estimate the effect of certain variables, for example, younger generation, which is a majority of the student population, might be more willing to take Uber/Lyft. Therefore, I might be over-estimating this effect because of my samples. There can also be some simultaneity happening between two variables that we can't easily tell.

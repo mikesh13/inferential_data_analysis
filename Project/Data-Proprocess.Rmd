@@ -1,0 +1,220 @@
+---
+title: "LB_Project"
+author: "Michael Shieh"
+date: "3/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("~/Documents/UW/2020Winter/INDE546_InferentialDataAnalysis/Project/Dataset")
+data_2014 <- read.csv("2014_Financial_Data.csv", header = TRUE)
+data_2015 <- read.csv("2015_Financial_Data.csv", header = TRUE)
+data_2016 <- read.csv("2016_Financial_Data.csv", header = TRUE)
+data_2017 <- read.csv("2017_Financial_Data.csv", header = TRUE)
+data_2018 <- read.csv("2018_Financial_Data.csv", header = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+data_2014 <- data_2014 %>% mutate(Year = 2014)
+data_2014 <- data_2014[, colnames(data_2014)[c(1, 226, 2:225)]]
+
+data_2015 <- data_2015 %>% mutate(Year = 2015)
+data_2015 <- data_2015[, colnames(data_2015)[c(1, 226, 2:225)]]
+
+data_2016 <- data_2016 %>% mutate(Year = 2016)
+data_2016 <- data_2016[, colnames(data_2016)[c(1, 226, 2:225)]]
+
+data_2017 <- data_2017 %>% mutate(Year = 2017)
+data_2017 <- data_2017[, colnames(data_2017)[c(1, 226, 2:225)]]
+
+data_2018 <- data_2018 %>% mutate(Year = 2018)
+data_2018 <- data_2018[, colnames(data_2018)[c(1, 226, 2:225)]]
+```
+
+```{r eval=FALSE, include=FALSE}
+names <- c()
+for (i in c(1:nrow(data_2014))){
+  name <- paste(data_2014$X[i], "_2014", sep = "")
+  names <- c(names, name)
+}
+data_2014$X <- names
+
+names <- c()
+for (i in c(1:nrow(data_2015))){
+  name <- paste(data_2015$X[i], "_2015", sep = "")
+  names <- c(names, name)
+}
+data_2015$X <- names
+
+names <- c()
+for (i in c(1:nrow(data_2016))){
+  name <- paste(data_2016$X[i], "_2016", sep = "")
+  names <- c(names, name)
+}
+data_2016$X <- names
+
+names <- c()
+for (i in c(1:nrow(data_2017))){
+  name <- paste(data_2017$X[i], "_2017", sep = "")
+  names <- c(names, name)
+}
+data_2017$X <- names
+
+names <- c()
+for (i in c(1:nrow(data_2018))){
+  name <- paste(data_2018$X[i], "_2018", sep = "")
+  names <- c(names, name)
+}
+data_2018$X <- names
+```
+
+
+```{r}
+data_2014 <- data_2014 %>% rename(NextYearPriceVar = X2015.PRICE.VAR....)
+data_2015 <- data_2015 %>% rename(NextYearPriceVar = X2016.PRICE.VAR....)
+data_2016 <- data_2016 %>% rename(NextYearPriceVar = X2017.PRICE.VAR....)
+data_2017 <- data_2017 %>% rename(NextYearPriceVar = X2018.PRICE.VAR....)
+data_2018 <- data_2018 %>% rename(NextYearPriceVar = X2019.PRICE.VAR....)
+```
+
+```{r}
+data <- rbind(data_2014, data_2015, data_2016, data_2017, data_2018)
+```
+
+```{r}
+data <- data %>% filter(Revenue >= 0, R.D.Expenses >= 0)
+data$Class <- as.factor(data$Class)
+```
+
+```{r}
+million = 1000000
+
+for (j in c(2:ncol(data))){
+  na <- 0
+  for (i in c(1:nrow(data))){
+    if (is.na(data[i, j]) == FALSE & is.numeric(data[i, j]) == TRUE){
+      if (abs(data[i, j]) > million){
+        if (data[i, j] >= 0){data[i, j] = data[i, j]/million} else{data[i, j] = data[i, j]/(-million)}
+      }
+    } else{if (is.na(data[i, j]) == TRUE){na <- na + 1}}
+  }
+}
+```
+
+```{r}
+quan = quantile(data$Revenue)
+data <- data %>% mutate(Revenue.Group = case_when((Revenue <= quan[5] & Revenue > quan[4]) ~ "4th Quantile", (Revenue <= quan[4] & Revenue > quan[3]) ~ "3rd Quantile", (Revenue <= quan[3] & Revenue > quan[2]) ~ "2nd Quantile", Revenue <= quan[2] ~ "1st Quantile"))
+```
+
+```{r}
+write.csv(data, "~/Documents/UW/2020Winter/INDE546_InferentialDataAnalysis/Project/Dataset/ProcessedDataset.csv")
+```
+
+```{r}
+data1 <- data %>% filter(Revenue.Group == "1st Quantile")
+data2 <- data %>% filter(Revenue.Group == "2nd Quantile")
+data3 <- data %>% filter(Revenue.Group == "3rd Quantile")
+data4 <- data %>% filter(Revenue.Group == "4th Quantile")
+
+plt1 <- ggplot(data1, aes(x = Revenue, y = R.D.Expenses, color = Sector)) +
+  geom_point() + labs(x = "Revenue", y = "R&D Expenses", title = "Revenue vs R&D Expenses for 1st Quantile Companies (Unit: Million)")
+plt2 <- ggplot(data2, aes(x = Revenue, y = R.D.Expenses, color = Sector)) +
+  geom_point() + labs(x = "Revenue", y = "R&D Expenses", title = "Revenue vs R&D Expenses for 2nd Quantile Companies (Unit: Million)")
+plt3 <- ggplot(data3, aes(x = Revenue, y = R.D.Expenses, color = Sector)) +
+  geom_point() + labs(x = "Revenue", y = "R&D Expenses", title = "Revenue vs R&D Expenses for 3rd Quantile Companies (Unit: Million)")
+plt4 <- ggplot(data4, aes(x = Revenue, y = R.D.Expenses, color = Sector)) +
+  geom_point() + labs(x = "Revenue", y = "R&D Expenses", title = "Revenue vs R&D Expenses for 4th Quantile Companies (Unit: Million)")
+
+#library(gridExtra)
+#grid.arrange(plt1, plt2, plt3, plt4, nrow = 2)
+
+ggsave(filename = "1st Quantile Companies.png", plot = plt1, device = "png")
+ggsave(filename = "2nd Quantile Companies.png", plot = plt2, device = "png")
+ggsave(filename = "3rd Quantile Companies.png", plot = plt3, device = "png")
+ggsave(filename = "4th Quantile Companies.png", plot = plt4, device = "png")
+```
+
+```{r}
+quantile <- rbind(quantile(data1$Revenue), quantile(data2$Revenue), quantile(data3$Revenue), quantile(data4$Revenue))
+rownames(quantile) <- c("1st Quantile Companies", "2nd Quantile Companies", "3rd Quantile Companies", "4th Quantile Companies")
+quantile
+```
+```{r}
+ggplot() + geom_boxplot(data = data1, mapping = aes(x = Revenue.Group, y = Revenue))
+ggplot() + geom_boxplot(data = data2, mapping = aes(x = Revenue.Group, y = Revenue))
+ggplot() + geom_boxplot(data = data3, mapping = aes(x = Revenue.Group, y = Revenue))
+ggplot() + geom_boxplot(data = data4, mapping = aes(x = Revenue.Group, y = Revenue))
+```
+
+```{r eval=FALSE, include=FALSE}
+for (name in colnames(data)){
+  if(grepl("ratio", name, ignore.case = TRUE)== TRUE){
+    print(name)
+  }
+}
+which(colnames(data) == "returnOnAssets")
+```
+
+```{r}
+datatest <- data %>% 
+  select(Revenue, R.D.Expenses, Total.shareholders.equity, returnOnEquity, returnOnAssets, Net.Income) %>% 
+  drop_na(Total.shareholders.equity, returnOnEquity, returnOnAssets, Net.Income) %>%
+  filter(Revenue > 0, R.D.Expenses > 0)
+```
+
+```{r eval=FALSE, include=FALSE}
+mean <- c()
+sd <- c()
+#quantile <- c()
+for (name in c(colnames(data2))){
+  print(name)
+  #print(mean(data2[name], sd(data2[name])))
+  #mean <- cbind(mean, mean(data2[name]))
+  #sd <- cbind(sd, sd(data2[name]))
+  #quantile <- rbind(quantile, quantile(data2[name]))
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+data$Revenue.Group <- as.factor(data$Revenue.Group)
+test <- lm(R.D.Expense.Growth ~ Revenue.Growth + Total.shareholders.equity + returnOnEquity + returnOnAssets + Net.Income, data = data)
+summary(test)
+data$R.
+```
+
+```{r}
+
+```
+
+
+```{r}
+ggplot() + 
+  geom_boxplot(data = data, mapping = aes(x = Revenue.Group, y = Revenue)) +
+  ylim(c(0,120000))
+```
+
+```{r}
+library(glmnet)
+train.ix <- sample(nrow(data1),floor( nrow(data1)) * 4 / 5 )
+data.train <- data1[train.ix,]
+# Create a testing data (half the original data size)
+data.test <- data1[-train.ix,]
+
+trainX <- as.matrix(data.train[,-1]) # Here, I did more lines of code for data preprocessing. This is because of the data format requirement by the package "glmnet"
+testX <- as.matrix(data.test[,-1])
+trainY <- as.matrix(data.train[,1])
+testY <- as.matrix(data.test[,1])
+```
+
+```{r}
+fit = glmnet(trainX,trainY, family=c("gaussian")) 
+print(fit$beta)
+```
