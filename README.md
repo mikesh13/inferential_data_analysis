@@ -1,6 +1,6 @@
 # inferential_data_analysis
 
-This repo contains the codes I wrote for the assignments and team project.
+This repo contains the codes I wrote for the assignments and team project using RStudio.
 The same [dataset](https://github.com/mikesh13/inferential_data_analysis/blob/master/HW3/Class_Survey_W20.csv) is used for every assignment.
 For every assignments, I needed to think of a research question, indicated a dependent variable and several independent variables in the model, 
 why I chose these variables, and did descriptive statistics for the variables to introduce them to readers.
